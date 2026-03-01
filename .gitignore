@@ -25,3 +25,5 @@ env/
 reports/
 *.class
 *.j
+
+tests_examples/

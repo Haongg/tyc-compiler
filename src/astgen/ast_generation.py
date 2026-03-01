@@ -12,5 +12,5 @@ from src.utils.nodes import *
 
 class ASTGeneration(TyCVisitor):
     """AST Generation visitor for TyC language."""
-
+    # TODO: Implement AST generation methods
     pass
