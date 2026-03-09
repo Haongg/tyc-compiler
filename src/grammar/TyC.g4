@@ -40,22 +40,16 @@ options{
 // ======================================================
 //                 PARSER RULES
 // ======================================================
-program: (decl | stmt)* EOF;
+program: (decl)* EOF;
 
-decl : vardecl | fundecl | structdecl;
+decl : fundecl | structdecl;
 
 // =========================VAR=============================
-vardecl
-    : vartyp ID (ASSIGN initValue)? SEMI
-    ;
 vartyp: INT | FLOAT | STRING | AUTO | ID;
 initValue
     : expr
     | structInit
     ;
-structInit: LBRACE argumentList RBRACE;
-argumentList: expr argumentListTail |;
-argumentListTail: COMMA expr argumentListTail |;
 
 // =========================STRUCT=============================
 structdecl: STRUCT ID LBRACE structstmt RBRACE SEMI;
@@ -106,13 +100,9 @@ forInit
 
 switchstmt
     : SWITCH LPAREN expr RPAREN
-      LBRACE switchList RBRACE
+      LBRACE switchList (defaultClause)? RBRACE
     ;
-switchList: switchBlock switchList |;
-switchBlock
-    : caseClause
-    | defaultClause
-    ;
+switchList: caseClause switchList |;
 caseClause
     : CASE expr COLON (stmt)*
     ;
@@ -178,8 +168,11 @@ primaryExpr
     | primaryExpr DOT ID
     | primaryExpr LPAREN argumentList RPAREN
     ;
-literal: FLOAT_LIT | INT_LIT | STRING_LIT;
+structInit: LBRACE argumentList RBRACE;
+argumentList: expr argumentListTail |;
+argumentListTail: COMMA expr argumentListTail |;
 
+literal: FLOAT_LIT | INT_LIT | STRING_LIT;
 
 // ======================================================
 //                 LEXER RULES
