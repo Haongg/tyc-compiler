@@ -69,7 +69,7 @@ paramtyp: INT | FLOAT | STRING | ID;
 
 body: LBRACE stmt* RBRACE;
 stmt
-    : varstmt
+    : varstmt SEMI
     | ifstmt
     | whilestmt
     | forstmt
@@ -81,22 +81,29 @@ stmt
     | breakstmt
     ;
 
-varstmt: vartyp ID (ASSIGN initValue)? SEMI;
+varstmt: vartyp ID (ASSIGN initValue)?;
 
 blockstmt: LBRACE stmt* RBRACE;
 
 ifstmt: IF LPAREN expr RPAREN  stmt (ELSE stmt )?;
 
+
 whilestmt: WHILE LPAREN expr RPAREN stmt ;
 
+
 forstmt
-    : FOR LPAREN forInit? SEMI expr? SEMI expr? RPAREN
+    : FOR LPAREN forInit? SEMI expr? SEMI forUpdate? RPAREN
      stmt
     ;
-forInit
-    : vartyp ID (ASSIGN initValue)?
-    | ID ASSIGN expr
+forInit: varstmt | assignExpr;
+forUpdate
+    : assignExpr
+    | INCREMENT assignLhs
+    | DECREMENT assignLhs
+    | assignLhs INCREMENT
+    | assignLhs DECREMENT
     ;
+
 
 switchstmt
     : SWITCH LPAREN expr RPAREN
@@ -110,11 +117,14 @@ defaultClause
     : DEFAULT COLON stmt*
     ;
 
+
 returnstmt: RETURN expr SEMI
           | RETURN SEMI
           ;
 
+
 exprstmt: expr SEMI;
+
 
 continuestmt: CONTINUE SEMI;
 breakstmt: BREAK SEMI;
@@ -125,9 +135,15 @@ expr
     ;
 
 assignExpr
-    : logicOrExpr ASSIGN assignExpr
+    : assignLhs ASSIGN assignExpr
     | logicOrExpr
     ;
+
+assignLhs
+    : ID
+    | primaryExpr DOT ID
+    ;
+
 
 logicOrExpr
     : logicOrExpr OR logicAndExpr | logicAndExpr
@@ -153,12 +169,17 @@ mulExpr
     : mulExpr (MUL | DIV | MOD) unaryExpr | unaryExpr
     ;
 unaryExpr
-    : (NOT | INCREMENT | DECREMENT | PLUS | MINUS) unaryExpr
+    : (NOT | PLUS | MINUS) unaryExpr
+    | (INCREMENT | DECREMENT) lvalue
     | postfixExpr
     ;
 postfixExpr
     : primaryExpr
-    | postfixExpr (INCREMENT | DECREMENT)
+    | lvalue (INCREMENT | DECREMENT)
+    ;
+lvalue
+    : ID
+    | primaryExpr DOT ID
     ;
 primaryExpr
     : ID
@@ -166,7 +187,7 @@ primaryExpr
     | structInit
     | LPAREN expr RPAREN
     | primaryExpr DOT ID
-    | primaryExpr LPAREN argumentList RPAREN
+    | ID LPAREN argumentList RPAREN
     ;
 structInit: LBRACE argumentList RBRACE;
 argumentList: expr argumentListTail |;

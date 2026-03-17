@@ -27,3 +27,6 @@ reports/
 *.j
 
 tests_examples/
+
+tyc_specification.pdf
+notebook.txt

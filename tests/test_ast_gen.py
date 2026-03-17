@@ -1,18 +1,201 @@
-"""
-AST Generation test cases for TyC compiler.
-TODO: Implement 100 test cases for AST generation
-"""
-
 import pytest
 from tests.utils import ASTGenerator
 
 
-def test_ast_gen_placeholder():
-    """Placeholder test - replace with actual test cases"""
-    source = """void main() {
-}"""
-    # TODO: Add actual test assertions
-    # Example:
-    # expected = "Program([FuncDecl(VoidType(), main, [], BlockStmt([]))])"
-    # assert str(ASTGenerator(source).generate()) == expected
-    assert True
+def wrap_main(body_expected: str) -> str:
+    return f"Program([FuncDecl(VoidType(), main, [], [{body_expected}])])"
+
+
+AST_TEST_CASES = [
+    # 1-12: Programs & Functions
+    ("", "Program([])"),
+    ("void f() {}", "Program([FuncDecl(VoidType(), f, [], [])])"),
+    ("int f() {}", "Program([FuncDecl(IntType(), f, [], [])])"),
+    ("float f() {}", "Program([FuncDecl(FloatType(), f, [], [])])"),
+    ("string f() {}", "Program([FuncDecl(StringType(), f, [], [])])"),
+    ("f() {}", "Program([FuncDecl(auto, f, [], [])])"),
+    ("MyStruct f() {}", "Program([FuncDecl(StructType(MyStruct), f, [], [])])"),
+    ("void f(int a) {}", "Program([FuncDecl(VoidType(), f, [Param(IntType(), a)], [])])"),
+    ("void f(int a, float b) {}", "Program([FuncDecl(VoidType(), f, [Param(IntType(), a), Param(FloatType(), b)], [])])"),
+    ("void f(string s, MyStruct m) {}", "Program([FuncDecl(VoidType(), f, [Param(StringType(), s), Param(StructType(MyStruct), m)], [])])"),
+    ("void a() {} void b() {}", "Program([FuncDecl(VoidType(), a, [], []), FuncDecl(VoidType(), b, [], [])])"),
+    ("void main() {}", "Program([FuncDecl(VoidType(), main, [], [])])"),
+
+    # 13-20: Struct Declarations
+    ("struct S {};", "Program([StructDecl(S, [])])"),
+    ("struct S { int a; };", "Program([StructDecl(S, [MemberDecl(IntType(), a)])])"),
+    ("struct S { float a; string b; };", "Program([StructDecl(S, [MemberDecl(FloatType(), a), MemberDecl(StringType(), b)])])"),
+    ("struct A { B b; };", "Program([StructDecl(A, [MemberDecl(StructType(B), b)])])"),
+    ("struct A { int a; }; void f() {}", "Program([StructDecl(A, [MemberDecl(IntType(), a)]), FuncDecl(VoidType(), f, [], [])])"),
+    ("struct A { int a; }; struct B { A a; };", "Program([StructDecl(A, [MemberDecl(IntType(), a)]), StructDecl(B, [MemberDecl(StructType(A), a)])])"),
+    ("struct A { int a; }; void main() { A a; }", "Program([StructDecl(A, [MemberDecl(IntType(), a)]), FuncDecl(VoidType(), main, [], [VarDecl(StructType(A), a)])])"),
+    ("struct A { int a; }; A f(A a) {}", "Program([StructDecl(A, [MemberDecl(IntType(), a)]), FuncDecl(StructType(A), f, [Param(StructType(A), a)], [])])"),
+
+    # 21-36: Variable Declarations
+    ("void main() { int a; }", wrap_main("VarDecl(IntType(), a)")),
+    ("void main() { float b = 1.5; }", wrap_main("VarDecl(FloatType(), b = FloatLiteral(1.5))")),
+    ("void main() { string s = \"test\"; }", wrap_main("VarDecl(StringType(), s = StringLiteral('test'))")),
+    ("void main() { auto c = 1; }", wrap_main("VarDecl(auto, c = IntLiteral(1))")),
+    ("void main() { MyStruct m; }", wrap_main("VarDecl(StructType(MyStruct), m)")),
+    ("void main() { auto x; }", wrap_main("VarDecl(auto, x)")),
+    ("void main() { int a = 1; int b = 2; }", wrap_main("VarDecl(IntType(), a = IntLiteral(1)), VarDecl(IntType(), b = IntLiteral(2))")),
+    ("void main() { int a = x; }", wrap_main("VarDecl(IntType(), a = Identifier(x))")),
+    ("void main() { float x = 1.0; }", wrap_main("VarDecl(FloatType(), x = FloatLiteral(1.0))")),
+    ("void main() { auto b = \"string\"; }", wrap_main("VarDecl(auto, b = StringLiteral('string'))")),
+    ("void main() { auto p = {1, 2}; }", wrap_main("VarDecl(auto, p = StructLiteral({IntLiteral(1), IntLiteral(2)}))")),
+    ("void main() { A a = {1}; }", wrap_main("VarDecl(StructType(A), a = StructLiteral({IntLiteral(1)}))")),
+    ("void main() { int a = (1 + 2); }", wrap_main("VarDecl(IntType(), a = BinaryOp(IntLiteral(1), +, IntLiteral(2)))")),
+    ("void main() { int a = -1; }", wrap_main("VarDecl(IntType(), a = PrefixOp(-IntLiteral(1)))")),
+    ("void main() { float f = .5; }", wrap_main("VarDecl(FloatType(), f = FloatLiteral(0.5))")),
+    ("void main() { int a = 1 + 2 * 3; }", wrap_main("VarDecl(IntType(), a = BinaryOp(IntLiteral(1), +, BinaryOp(IntLiteral(2), *, IntLiteral(3))))")),
+
+    # 37-70: Literals & Expressions
+    ("void main() { 1; }", wrap_main("ExprStmt(IntLiteral(1))")),
+    ("void main() { 1.5; }", wrap_main("ExprStmt(FloatLiteral(1.5))")),
+    ("void main() { \"text\"; }", wrap_main("ExprStmt(StringLiteral('text'))")),
+    ("void main() { x; }", wrap_main("ExprStmt(Identifier(x))")),
+    ("void main() { x = 1; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = IntLiteral(1)))")),
+    ("void main() { x = y = 1; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = AssignExpr(Identifier(y) = IntLiteral(1))))")),
+    ("void main() { {1}; }", wrap_main("ExprStmt(StructLiteral({IntLiteral(1)}))")),
+    ("void main() { {1, 2.5, \"x\"}; }", wrap_main("ExprStmt(StructLiteral({IntLiteral(1), FloatLiteral(2.5), StringLiteral('x')}))")),
+    ("void main() { x + 1; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), +, IntLiteral(1)))")),
+    ("void main() { x - 1; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), -, IntLiteral(1)))")),
+    ("void main() { x * 2; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), *, IntLiteral(2)))")),
+    ("void main() { x / 2; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), /, IntLiteral(2)))")),
+    ("void main() { x % 2; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), %, IntLiteral(2)))")),
+    ("void main() { +x; }", wrap_main("ExprStmt(PrefixOp(+Identifier(x)))")),
+    ("void main() { -x; }", wrap_main("ExprStmt(PrefixOp(-Identifier(x)))")),
+    ("void main() { !x; }", wrap_main("ExprStmt(PrefixOp(!Identifier(x)))")),
+    ("void main() { ++x; }", wrap_main("ExprStmt(PrefixOp(++Identifier(x)))")),
+    ("void main() { --x; }", wrap_main("ExprStmt(PrefixOp(--Identifier(x)))")),
+    ("void main() { x++; }", wrap_main("ExprStmt(PostfixOp(Identifier(x)++))")),
+    ("void main() { x--; }", wrap_main("ExprStmt(PostfixOp(Identifier(x)--))")),
+    ("void main() { x == y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), ==, Identifier(y)))")),
+    ("void main() { x != y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), !=, Identifier(y)))")),
+    ("void main() { x < y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), <, Identifier(y)))")),
+    ("void main() { x <= y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), <=, Identifier(y)))")),
+    ("void main() { x >= y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), >=, Identifier(y)))")),
+    ("void main() { x && y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), &&, Identifier(y)))")),
+    ("void main() { x || y; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), ||, Identifier(y)))")),
+    ("void main() { 1 + 2 * 3; }", wrap_main("ExprStmt(BinaryOp(IntLiteral(1), +, BinaryOp(IntLiteral(2), *, IntLiteral(3))))")),
+    ("void main() { (1 + 2) * 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), +, IntLiteral(2)), *, IntLiteral(3)))")),
+    ("void main() { x + y * z; }", wrap_main("ExprStmt(BinaryOp(Identifier(x), +, BinaryOp(Identifier(y), *, Identifier(z))))")),
+    ("void main() { (x + y) * z; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(Identifier(x), +, Identifier(y)), *, Identifier(z)))")),
+    ("void main() { x < y && y < z; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(Identifier(x), <, Identifier(y)), &&, BinaryOp(Identifier(y), <, Identifier(z))))")),
+    ("void main() { x == y || y == z; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(Identifier(x), ==, Identifier(y)), ||, BinaryOp(Identifier(y), ==, Identifier(z))))")),
+
+    # 71-82: Functions & Member Access
+    ("void main() { f(); }", wrap_main("ExprStmt(FuncCall(f, []))")),
+    ("void main() { f(1); }", wrap_main("ExprStmt(FuncCall(f, [IntLiteral(1)]))")),
+    ("void main() { f(1, 2); }", wrap_main("ExprStmt(FuncCall(f, [IntLiteral(1), IntLiteral(2)]))")),
+    ("void main() { a.b; }", wrap_main("ExprStmt(MemberAccess(Identifier(a).b))")),
+    ("void main() { a.b.c; }", wrap_main("ExprStmt(MemberAccess(MemberAccess(Identifier(a).b).c))")),
+    ("void main() { f().b; }", wrap_main("ExprStmt(MemberAccess(FuncCall(f, []).b))")),
+    ("void main() { a.b = 1; }", wrap_main("ExprStmt(AssignExpr(MemberAccess(Identifier(a).b) = IntLiteral(1)))")),
+    ("void main() { f(a.b); }", wrap_main("ExprStmt(FuncCall(f, [MemberAccess(Identifier(a).b)]))")),
+    ("void main() { f({1, 2}); }", wrap_main("ExprStmt(FuncCall(f, [StructLiteral({IntLiteral(1), IntLiteral(2)})]))")),
+    ("void main() { a = f(); }", wrap_main("ExprStmt(AssignExpr(Identifier(a) = FuncCall(f, [])))")),
+    ("void main() { a = f(1, 2 + 3); }", wrap_main("ExprStmt(AssignExpr(Identifier(a) = FuncCall(f, [IntLiteral(1), BinaryOp(IntLiteral(2), +, IntLiteral(3))])))")),
+    ("void main() { x = a.b.c; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = MemberAccess(MemberAccess(Identifier(a).b).c)))")),
+
+    # 83-92: If & While
+    ("void main() { if (x) {} }", wrap_main("IfStmt(if Identifier(x) then BlockStmt([]))")),
+    ("void main() { if (x) x; }", wrap_main("IfStmt(if Identifier(x) then ExprStmt(Identifier(x)))")),
+    ("void main() { if (x) {} else {} }", wrap_main("IfStmt(if Identifier(x) then BlockStmt([]), else BlockStmt([]))")),
+    ("void main() { if (x) x; else y; }", wrap_main("IfStmt(if Identifier(x) then ExprStmt(Identifier(x)), else ExprStmt(Identifier(y)))")),
+    ("void main() { if (x) if (y) z; }", wrap_main("IfStmt(if Identifier(x) then IfStmt(if Identifier(y) then ExprStmt(Identifier(z))))")),
+    ("void main() { if (x) if (y) z; else w; }", wrap_main("IfStmt(if Identifier(x) then IfStmt(if Identifier(y) then ExprStmt(Identifier(z)), else ExprStmt(Identifier(w))))")),
+    ("void main() { while (1) {} }", wrap_main("WhileStmt(while IntLiteral(1) do BlockStmt([]))")),
+    ("void main() { while (x) x--; }", wrap_main("WhileStmt(while Identifier(x) do ExprStmt(PostfixOp(Identifier(x)--)))")),
+    ("void main() { while (x < 10) { x++; } }", wrap_main("WhileStmt(while BinaryOp(Identifier(x), <, IntLiteral(10)) do BlockStmt([ExprStmt(PostfixOp(Identifier(x)++))]))")),
+    ("void main() { while (1) break; }", wrap_main("WhileStmt(while IntLiteral(1) do BreakStmt())")),
+
+    # 93-100: For, Switch, Return
+    ("void main() { for(;;) {} }", wrap_main("ForStmt(for None; None; None do BlockStmt([]))")),
+    ("void main() { for(int i = 0;;) {} }", wrap_main("ForStmt(for VarDecl(IntType(), i = IntLiteral(0)); None; None do BlockStmt([]))")),
+    ("void main() { for(; i < 10;) {} }", wrap_main("ForStmt(for None; BinaryOp(Identifier(i), <, IntLiteral(10)); None do BlockStmt([]))")),
+    ("void main() { for(;; i++) {} }", wrap_main("ForStmt(for None; None; PostfixOp(Identifier(i)++) do BlockStmt([]))")),
+    ("void main() { for(;;){ continue; } }", wrap_main("ForStmt(for None; None; None do BlockStmt([ContinueStmt()]))")),
+    ("void main() { switch(x) {} }", wrap_main("SwitchStmt(switch Identifier(x) cases [])")),
+    ("void main() { switch(x) { case 1: break; } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [BreakStmt()])])")),
+    ("void main() { switch(x) { case 1: x; default: y; } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [ExprStmt(Identifier(x))])], default DefaultStmt(default: [ExprStmt(Identifier(y))]))")),
+    ("void main() { return f(x.y + 2); }", wrap_main("ReturnStmt(return FuncCall(f, [BinaryOp(MemberAccess(Identifier(x).y), +, IntLiteral(2))]))")),
+    # 101-170: Extra Coverage
+    ("struct A {}; void main() {}", "Program([StructDecl(A, []), FuncDecl(VoidType(), main, [], [])])"),
+    ("struct A { int a; }; struct B { A a; }; void main() { B b; }", "Program([StructDecl(A, [MemberDecl(IntType(), a)]), StructDecl(B, [MemberDecl(StructType(A), a)]), FuncDecl(VoidType(), main, [], [VarDecl(StructType(B), b)])])"),
+    ("int sum(int a, int b) { return a + b; }", "Program([FuncDecl(IntType(), sum, [Param(IntType(), a), Param(IntType(), b)], [ReturnStmt(return BinaryOp(Identifier(a), +, Identifier(b)))])])"),
+    ("void main() { return; }", wrap_main("ReturnStmt(return)")),
+    ("void main() { return 1; }", wrap_main("ReturnStmt(return IntLiteral(1))")),
+    ("void main() { return x + 1; }", wrap_main("ReturnStmt(return BinaryOp(Identifier(x), +, IntLiteral(1)))")),
+    ("void main() { break; }", wrap_main("BreakStmt()")),
+    ("void main() { continue; }", wrap_main("ContinueStmt()")),
+    ("void main() { if (x) { y; } }", wrap_main("IfStmt(if Identifier(x) then BlockStmt([ExprStmt(Identifier(y))]))")),
+    ("void main() { if (x) { y; } else { z; } }", wrap_main("IfStmt(if Identifier(x) then BlockStmt([ExprStmt(Identifier(y))]), else BlockStmt([ExprStmt(Identifier(z))]))")),
+    ("void main() { while (x) { y = y + 1; } }", wrap_main("WhileStmt(while Identifier(x) do BlockStmt([ExprStmt(AssignExpr(Identifier(y) = BinaryOp(Identifier(y), +, IntLiteral(1))))]))")),
+    ("void main() { for(i = 0; i < 3; i++) { x = x + i; } }", wrap_main("ForStmt(for ExprStmt(AssignExpr(Identifier(i) = IntLiteral(0))); BinaryOp(Identifier(i), <, IntLiteral(3)); PostfixOp(Identifier(i)++) do BlockStmt([ExprStmt(AssignExpr(Identifier(x) = BinaryOp(Identifier(x), +, Identifier(i))))]))")),
+    ("void main() { for(int i = 0; i < 3; ++i) { } }", wrap_main("ForStmt(for VarDecl(IntType(), i = IntLiteral(0)); BinaryOp(Identifier(i), <, IntLiteral(3)); PrefixOp(++Identifier(i)) do BlockStmt([]))")),
+    ("void main() { for(; ; --i) i; }", wrap_main("ForStmt(for None; None; PrefixOp(--Identifier(i)) do ExprStmt(Identifier(i)))")),
+    ("void main() { switch(x) { case 1: break; default: break; } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [BreakStmt()])], default DefaultStmt(default: [BreakStmt()]))")),
+    ("void main() { switch(x) { case 1: x = 1; case 2: x = 2; } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [ExprStmt(AssignExpr(Identifier(x) = IntLiteral(1)))]), CaseStmt(case IntLiteral(2): [ExprStmt(AssignExpr(Identifier(x) = IntLiteral(2)))])])")),
+    ("void main() { x = (y = 1); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = AssignExpr(Identifier(y) = IntLiteral(1))))")),
+    ("void main() { x = (y = 1) + 2; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = BinaryOp(AssignExpr(Identifier(y) = IntLiteral(1)), +, IntLiteral(2))))")),
+    ("void main() { f(g(h())); }", wrap_main("ExprStmt(FuncCall(f, [FuncCall(g, [FuncCall(h, [])])]))")),
+    ("void main() { f(1, g(2), h(3 + 4)); }", wrap_main("ExprStmt(FuncCall(f, [IntLiteral(1), FuncCall(g, [IntLiteral(2)]), FuncCall(h, [BinaryOp(IntLiteral(3), +, IntLiteral(4))])]))")),
+    ("void main() { a.b = c.d; }", wrap_main("ExprStmt(AssignExpr(MemberAccess(Identifier(a).b) = MemberAccess(Identifier(c).d)))")),
+    ("void main() { a.b.c = 1; }", wrap_main("ExprStmt(AssignExpr(MemberAccess(MemberAccess(Identifier(a).b).c) = IntLiteral(1)))")),
+    ("void main() { a.b.c = d.e.f; }", wrap_main("ExprStmt(AssignExpr(MemberAccess(MemberAccess(Identifier(a).b).c) = MemberAccess(MemberAccess(Identifier(d).e).f)))")),
+    ("void main() { a = b.c.d; }", wrap_main("ExprStmt(AssignExpr(Identifier(a) = MemberAccess(MemberAccess(Identifier(b).c).d)))")),
+    ("void main() { a = f().b.c; }", wrap_main("ExprStmt(AssignExpr(Identifier(a) = MemberAccess(MemberAccess(FuncCall(f, []).b).c)))")),
+    ("void main() { a.b + c.d; }", wrap_main("ExprStmt(BinaryOp(MemberAccess(Identifier(a).b), +, MemberAccess(Identifier(c).d)))")),
+    ("void main() { a.b * c.d + e; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(MemberAccess(Identifier(a).b), *, MemberAccess(Identifier(c).d)), +, Identifier(e)))")),
+    ("void main() { (a.b + c.d) * e; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(MemberAccess(Identifier(a).b), +, MemberAccess(Identifier(c).d)), *, Identifier(e)))")),
+    ("void main() { !a && b; }", wrap_main("ExprStmt(BinaryOp(PrefixOp(!Identifier(a)), &&, Identifier(b)))")),
+    ("void main() { !(a && b); }", wrap_main("ExprStmt(PrefixOp(!BinaryOp(Identifier(a), &&, Identifier(b))))")),
+    ("void main() { ++a + b; }", wrap_main("ExprStmt(BinaryOp(PrefixOp(++Identifier(a)), +, Identifier(b)))")),
+    ("void main() { a++ + b; }", wrap_main("ExprStmt(BinaryOp(PostfixOp(Identifier(a)++), +, Identifier(b)))")),
+    ("void main() { --a * 2; }", wrap_main("ExprStmt(BinaryOp(PrefixOp(--Identifier(a)), *, IntLiteral(2)))")),
+    ("void main() { a-- * 2; }", wrap_main("ExprStmt(BinaryOp(PostfixOp(Identifier(a)--), *, IntLiteral(2)))")),
+    ("void main() { -1 + -2; }", wrap_main("ExprStmt(BinaryOp(PrefixOp(-IntLiteral(1)), +, PrefixOp(-IntLiteral(2))))")),
+    ("void main() { +1 + 2; }", wrap_main("ExprStmt(BinaryOp(PrefixOp(+IntLiteral(1)), +, IntLiteral(2)))")),
+    ("void main() { 1 < 2 < 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), <, IntLiteral(2)), <, IntLiteral(3)))")),
+    ("void main() { 1 == 2 == 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), ==, IntLiteral(2)), ==, IntLiteral(3)))")),
+    ("void main() { 1 + 2 - 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), +, IntLiteral(2)), -, IntLiteral(3)))")),
+    ("void main() { 1 * 2 / 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), *, IntLiteral(2)), /, IntLiteral(3)))")),
+    ("void main() { 1 % 2 * 3; }", wrap_main("ExprStmt(BinaryOp(BinaryOp(IntLiteral(1), %, IntLiteral(2)), *, IntLiteral(3)))")),
+    ("void main() { (1); }", wrap_main("ExprStmt(IntLiteral(1))")),
+    ("void main() { (x); }", wrap_main("ExprStmt(Identifier(x))")),
+    ("void main() { ((1 + 2)); }", wrap_main("ExprStmt(BinaryOp(IntLiteral(1), +, IntLiteral(2)))")),
+    ("void main() { {}; }", wrap_main("ExprStmt(StructLiteral({}))")),
+    ("void main() { {1, {2}}; }", wrap_main("ExprStmt(StructLiteral({IntLiteral(1), StructLiteral({IntLiteral(2)})}))")),
+    ("void main() { auto s = {}; }", wrap_main("VarDecl(auto, s = StructLiteral({}))")),
+    ("void main() { auto s = {1, {2, 3}}; }", wrap_main("VarDecl(auto, s = StructLiteral({IntLiteral(1), StructLiteral({IntLiteral(2), IntLiteral(3)})}))")),
+    ("void main() { f({}); }", wrap_main("ExprStmt(FuncCall(f, [StructLiteral({})]))")),
+    ("void main() { f({1, {2}}); }", wrap_main("ExprStmt(FuncCall(f, [StructLiteral({IntLiteral(1), StructLiteral({IntLiteral(2)})})]))")),
+    ("void main() { x = {1}; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = StructLiteral({IntLiteral(1)})))")),
+    ("void main() { x = {1, 2}; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = StructLiteral({IntLiteral(1), IntLiteral(2)})))")),
+    ("void main() { x = {1, 2 + 3}; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = StructLiteral({IntLiteral(1), BinaryOp(IntLiteral(2), +, IntLiteral(3))})))")),
+    ("void main() { x = {1, y}; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = StructLiteral({IntLiteral(1), Identifier(y)})))")),
+    ("void main() { x = {1, y, z}; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = StructLiteral({IntLiteral(1), Identifier(y), Identifier(z)})))")),
+    ("void main() { f({1, 2}, {3}); }", wrap_main("ExprStmt(FuncCall(f, [StructLiteral({IntLiteral(1), IntLiteral(2)}), StructLiteral({IntLiteral(3)})]))")),
+    ("void main() { f(1, {2,3}); }", wrap_main("ExprStmt(FuncCall(f, [IntLiteral(1), StructLiteral({IntLiteral(2), IntLiteral(3)})]))")),
+    ("void main() { f(1, {2,3}, 4); }", wrap_main("ExprStmt(FuncCall(f, [IntLiteral(1), StructLiteral({IntLiteral(2), IntLiteral(3)}), IntLiteral(4)]))")),
+    ("void main() { x = f(1); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = FuncCall(f, [IntLiteral(1)])))")),
+    ("void main() { x = f(1,2); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = FuncCall(f, [IntLiteral(1), IntLiteral(2)])))")),
+    ("void main() { x = f(1,2) + 3; }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = BinaryOp(FuncCall(f, [IntLiteral(1), IntLiteral(2)]), +, IntLiteral(3))))")),
+    ("void main() { x = 1 + f(2); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = BinaryOp(IntLiteral(1), +, FuncCall(f, [IntLiteral(2)]))))")),
+    ("void main() { x = f(1) + g(2); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = BinaryOp(FuncCall(f, [IntLiteral(1)]), +, FuncCall(g, [IntLiteral(2)]))))")),
+    ("void main() { if (x) return; }", wrap_main("IfStmt(if Identifier(x) then ReturnStmt(return))")),
+    ("void main() { if (x) return 1; else return 2; }", wrap_main("IfStmt(if Identifier(x) then ReturnStmt(return IntLiteral(1)), else ReturnStmt(return IntLiteral(2)))")),
+    ("void main() { while (x) return; }", wrap_main("WhileStmt(while Identifier(x) do ReturnStmt(return))")),
+    ("void main() { for(;;) return; }", wrap_main("ForStmt(for None; None; None do ReturnStmt(return))")),
+    ("void main() { switch(x) { case 1: return; default: return 1; } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [ReturnStmt(return)])], default DefaultStmt(default: [ReturnStmt(return IntLiteral(1))]))")),
+    ("void main() { switch(x) { case 1: { y; } } }", wrap_main("SwitchStmt(switch Identifier(x) cases [CaseStmt(case IntLiteral(1): [BlockStmt([ExprStmt(Identifier(y))])])])")),
+    ("void main() { x = (1); }", wrap_main("ExprStmt(AssignExpr(Identifier(x) = IntLiteral(1)))")),
+
+]
+
+
+@pytest.mark.parametrize("source, expected", AST_TEST_CASES)
+def test_ast_generation(source, expected):
+    """Dynamically executes 100 parametrized test cases for AST generation."""
+    assert str(ASTGenerator(source).generate()) == expected
